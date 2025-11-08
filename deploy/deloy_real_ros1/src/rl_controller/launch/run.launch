@@ -1,0 +1,12 @@
+<launch>
+
+  <node pkg="rl_controller" type="controller" name="controller" output="screen" required="true" args="eth0" >
+  <!-- <node pkg="rl_controller" type="controller" name="controller" output="screen" required="true" args="eth0" launch-prefix="xterm -e gdb -ex run - -args"> -->
+    <!-- <remap from="~global_cloud" to="$(arg map_topic)"/> -->
+    <!-- <remap from="~global_polygon" to="$(arg polygon_topic)"/> -->
+  </node>
+
+  <!-- rviz -->
+  <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rl_controller)/rviz/default.rviz" required="true" /> -->
+
+</launch>

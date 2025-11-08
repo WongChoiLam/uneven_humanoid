@@ -124,7 +124,6 @@ celerybeat.pid
 # Environments
 .env
 .venv
-env/
 venv/
 ENV/
 env.bak/
@@ -159,4 +158,17 @@ cython_debug/
 .vscode
 
 # logs
-logs
+logs/
+log/
+
+devel/
+ref/
+third_party/
+experiments/
+.catkin_tools
+.catkin_workspace
+*.bag
+*.pcd
+*.h5
+*.zip
+isaacgym/
