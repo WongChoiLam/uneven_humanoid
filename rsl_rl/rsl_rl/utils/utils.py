@@ -56,10 +56,15 @@ def split_and_pad_trajectories(tensor, dones):
     done_indices = torch.cat((flat_dones.new_tensor([-1], dtype=torch.int64), flat_dones.nonzero()[:, 0]))
     trajectory_lengths = done_indices[1:] - done_indices[:-1]
     trajectory_lengths_list = trajectory_lengths.tolist()
-    # Extract the individual trajectories
-    trajectories = torch.split(tensor.transpose(1, 0).flatten(0, 1),trajectory_lengths_list)
-    padded_trajectories = torch.nn.utils.rnn.pad_sequence(trajectories)
 
+    # Split the tensor into trajectories
+    trajectories = torch.split(tensor.transpose(1, 0).flatten(0, 1), trajectory_lengths_list)
+    # Add at least one full length trajectory
+    trajectories = (*trajectories, torch.zeros(tensor.shape[0], *tensor.shape[2:], device=tensor.device))
+    # Pad the trajectories to the length of the longest trajectory
+    padded_trajectories = torch.nn.utils.rnn.pad_sequence(trajectories)
+    # Remove the added trajectory
+    padded_trajectories = padded_trajectories[:, :-1]
 
     trajectory_masks = trajectory_lengths > torch.arange(0, tensor.shape[0], device=tensor.device).unsqueeze(1)
     return padded_trajectories, trajectory_masks
