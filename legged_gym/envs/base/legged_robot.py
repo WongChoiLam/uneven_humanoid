@@ -58,7 +58,7 @@ class LeggedRobot(BaseTask):
         # step physics and render each frame
         self.render()
         for _ in range(self.cfg.control.decimation): #TODO actuate the remaining (29 - 12) DoFs
-            self.torques = self._compute_torques_full(self.actions).view(self.torques.shape)
+            self.torques = self._compute_torques(self.actions).view(self.torques.shape)
             self.gym.set_dof_actuation_force_tensor(self.sim, gymtorch.unwrap_tensor(self.torques))
             self.gym.simulate(self.sim)
             if self.cfg.env.test:
@@ -320,33 +320,11 @@ class LeggedRobot(BaseTask):
         actions_scaled = actions * self.cfg.control.action_scale
         control_type = self.cfg.control.control_type
         if control_type=="P":
-            torques = self.p_gains*(actions_scaled + self.default_dof_pos - self.dof_pos) - self.d_gains*self.dof_vel
+            torques = self.p_gains[self.actuated_joint_idx]*(actions_scaled + self.default_dof_pos[:, self.actuated_joint_idx] \
+                    - self.dof_pos[:, self.actuated_joint_idx]) - self.d_gains[self.actuated_joint_idx]*self.dof_vel[:, self.actuated_joint_idx]
         elif control_type=="V":
-            torques = self.p_gains*(actions_scaled - self.dof_vel) - self.d_gains*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
-        elif control_type=="T":
-            torques = actions_scaled
-        else:
-            raise NameError(f"Unknown controller type: {control_type}")
-        return torch.clip(torques, -self.torque_limits, self.torque_limits)
-    
-    def _compute_torques_full(self, actions):
-        """ Compute torques from actions.
-            Actions can be interpreted as position or velocity targets given to a PD controller, or directly as scaled torques.
-            [NOTE]: torques must have the same dimension as the number of DOFs, even if some DOFs are not actuated.
-
-        Args:
-            actions (torch.Tensor): Actions
-
-        Returns:
-            [torch.Tensor]: Torques sent to the simulation
-        """
-        #pd controller
-        actions_scaled = actions * self.cfg.control.action_scale
-        control_type = self.cfg.control.control_type
-        if control_type=="P":
-            torques = self.p_gains[:12]*(actions_scaled + self.default_dof_pos[:, :12] - self.dof_pos[:, :12]) - self.d_gains[:12]*self.dof_vel[:, :12]
-        elif control_type=="V":
-            torques = self.p_gains[:12]*(actions_scaled - self.dof_vel[:, :12]) - self.d_gains*(self.dof_vel[:, :12] - self.last_dof_vel[:, :12])/self.sim_params.dt
+            torques = self.p_gains[self.actuated_joint_idx]*(actions_scaled - self.dof_vel[:, self.actuated_joint_idx]) \
+                - self.d_gains*(self.dof_vel[:, self.actuated_joint_idx] - self.last_dof_vel[:, self.actuated_joint_idx])/self.sim_params.dt
         elif control_type=="T":
             torques = actions_scaled
         else:
@@ -354,7 +332,10 @@ class LeggedRobot(BaseTask):
         # upper_body_torque = torch.zeros((torques.shape[0], 17), device=torques.device)
         upper_body_torque = self.p_gains[-17:]*(0.0 - self.dof_pos[:, -17:]) - self.d_gains[-17:]*self.dof_vel[:, -17:]
         torques = torch.cat([torques, upper_body_torque], dim=1)
-        return torch.clip(torques, -self.torque_limits, self.torque_limits)
+
+        full_torques = self.p_gains*(0.0 - self.dof_pos) - self.d_gains*self.dof_vel
+        full_torques[self.actuated_joint_idx] = torques
+        return torch.clip(full_torques, -self.torque_limits, self.torque_limits)
 
     def _reset_dofs(self, env_ids):
         """ Resets DOF position and velocities of selected environmments
@@ -585,6 +566,7 @@ class LeggedRobot(BaseTask):
         self.dof_names = self.gym.get_asset_dof_names(robot_asset)
         self.num_bodies = len(body_names)
         self.num_dofs = len(self.dof_names)
+        self.actuated_joint_idx = [self.dof_names.index(name) for name in self.cfg.env.actuated_joint_names]
         feet_names = [s for s in body_names if self.cfg.asset.foot_name in s]
         penalized_contact_names = []
         for name in self.cfg.asset.penalize_contacts_on:

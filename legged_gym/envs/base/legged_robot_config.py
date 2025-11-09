@@ -5,7 +5,21 @@ class LeggedRobotCfg(BaseConfig):
         num_envs = 4096
         num_observations = 48
         num_privileged_obs = None # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
-        num_actions = 12
+        actuated_joint_names = [\
+            'left_hip_pitch_joint',\
+            'left_hip_roll_joint',\
+            'left_hip_yaw_joint',\
+            'left_knee_joint',\
+            'left_ankle_pitch_joint',\
+            'left_ankle_roll_joint',\
+            'right_hip_pitch_joint',\
+            'right_hip_roll_joint',\
+            'right_hip_yaw_joint',\
+            'right_knee_joint',\
+            'right_ankle_pitch_joint',\
+            'right_ankle_roll_join',\
+        ]
+        num_actions = len(actuated_joint_names)
         env_spacing = 3.  # not used with heightfields/trimeshes 
         send_timeouts = True # send time out information to the algorithm
         episode_length_s = 20 # episode length in seconds
