@@ -17,7 +17,7 @@ class LeggedRobotCfg(BaseConfig):
             'right_hip_yaw_joint',\
             'right_knee_joint',\
             'right_ankle_pitch_joint',\
-            'right_ankle_roll_join',\
+            'right_ankle_roll_joint',\
         ]
         num_actions = len(actuated_joint_names)
         env_spacing = 3.  # not used with heightfields/trimeshes 

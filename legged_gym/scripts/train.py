@@ -5,7 +5,7 @@ import sys
 
 import isaacgym
 from legged_gym.envs import *
-from legged_gym.utils import get_args, task_registry
+from ..utils import get_args, task_registry
 import torch
 
 def train(args):

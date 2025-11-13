@@ -330,11 +330,10 @@ class LeggedRobot(BaseTask):
         else:
             raise NameError(f"Unknown controller type: {control_type}")
         # upper_body_torque = torch.zeros((torques.shape[0], 17), device=torques.device)
-        upper_body_torque = self.p_gains[-17:]*(0.0 - self.dof_pos[:, -17:]) - self.d_gains[-17:]*self.dof_vel[:, -17:]
-        torques = torch.cat([torques, upper_body_torque], dim=1)
-
+        # upper_body_torque = self.p_gains[-17:]*(0.0 - self.dof_pos[:, -17:]) - self.d_gains[-17:]*self.dof_vel[:, -17:]
+        # torques = torch.cat([torques, upper_body_torque], dim=1)
         full_torques = self.p_gains*(0.0 - self.dof_pos) - self.d_gains*self.dof_vel
-        full_torques[self.actuated_joint_idx] = torques
+        full_torques[:, self.actuated_joint_idx] = torques
         return torch.clip(full_torques, -self.torque_limits, self.torque_limits)
 
     def _reset_dofs(self, env_ids):
