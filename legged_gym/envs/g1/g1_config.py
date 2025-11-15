@@ -64,6 +64,7 @@ class G1RoughCfg( LeggedRobotCfg ):
         terminate_after_contacts_on = ["pelvis"]
         self_collisions = 0 # 1 to disable, 0 to enable...bitwise filter
         flip_visual_attachments = False
+        # collapse_fixed_joints = False
   
     class rewards( LeggedRobotCfg.rewards ):
         soft_dof_pos_limit = 0.9

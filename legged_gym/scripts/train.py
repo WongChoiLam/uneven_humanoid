@@ -4,7 +4,7 @@ from datetime import datetime
 import sys
 
 import isaacgym
-from legged_gym.envs import *
+from ..envs import *
 from ..utils import get_args, task_registry
 import torch
 

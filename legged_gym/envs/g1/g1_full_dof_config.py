@@ -47,9 +47,9 @@ class G1FullDOFCfg( LeggedRobotCfg ):
         friction_range = [0.1, 1.25]
         randomize_base_mass = True
         added_mass_range = [-1., 3.]
-        push_robots = True
+        push_robots = False
         push_interval_s = 5
-        max_push_vel_xy = 3.0
+        max_push_vel_xy = 1.5
       
 
     class control( LeggedRobotCfg.control ):
