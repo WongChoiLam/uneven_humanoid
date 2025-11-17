@@ -79,7 +79,7 @@ class Terrain:
     def make_terrain(self, choice, difficulty):
         terrain = terrain_utils.SubTerrain(   "terrain",
                                 width=self.width_per_env_pixels,
-                                length=self.width_per_env_pixels,
+                                length=self.length_per_env_pixels,
                                 vertical_scale=self.cfg.vertical_scale,
                                 horizontal_scale=self.cfg.horizontal_scale)
         slope = difficulty * 0.4
@@ -109,9 +109,12 @@ class Terrain:
             terrain_utils.stepping_stones_terrain(terrain, stone_size=stepping_stones_size, stone_distance=stone_distance, max_height=0., platform_size=4.)
         elif choice < self.proportions[6]:
             gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
-        else:
+        elif choice < self.proportions[7]:
             pit_terrain(terrain, depth=pit_depth, platform_size=4.)
-        
+        else:
+            # Flat terrain - do nothing, terrain is already initialized as flat
+            pass
+
         return terrain
 
     def add_terrain_to_map(self, terrain, row, col):

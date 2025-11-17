@@ -171,4 +171,4 @@ experiments/
 *.pcd
 *.h5
 *.zip
-isaacgym/
+isaacgym/wandb/

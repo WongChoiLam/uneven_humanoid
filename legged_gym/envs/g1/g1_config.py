@@ -4,25 +4,51 @@ class G1RoughCfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
         pos = [0.0, 0.0, 0.8] # x,y,z [m]
         default_joint_angles = { # = target angles [rad] when action = 0.0
-           'left_hip_yaw_joint' : 0. ,   
-           'left_hip_roll_joint' : 0,               
-           'left_hip_pitch_joint' : -0.1,         
-           'left_knee_joint' : 0.3,       
-           'left_ankle_pitch_joint' : -0.2,     
-           'left_ankle_roll_joint' : 0,     
-           'right_hip_yaw_joint' : 0., 
-           'right_hip_roll_joint' : 0, 
-           'right_hip_pitch_joint' : -0.1,                                       
-           'right_knee_joint' : 0.3,                                             
-           'right_ankle_pitch_joint': -0.2,                              
-           'right_ankle_roll_joint' : 0,       
+           'left_hip_yaw_joint' : 0. ,
+           'left_hip_roll_joint' : 0,
+           'left_hip_pitch_joint' : -0.1,
+           'left_knee_joint' : 0.3,
+           'left_ankle_pitch_joint' : -0.2,
+           'left_ankle_roll_joint' : 0,
+           'right_hip_yaw_joint' : 0.,
+           'right_hip_roll_joint' : 0,
+           'right_hip_pitch_joint' : -0.1,
+           'right_knee_joint' : 0.3,
+           'right_ankle_pitch_joint': -0.2,
+           'right_ankle_roll_joint' : 0,
            'torso_joint' : 0.
         }
-    
+
     class env(LeggedRobotCfg.env):
         num_observations = 47
         num_privileged_obs = 50
         num_actions = 12
+
+    class terrain(LeggedRobotCfg.terrain):
+        mesh_type = 'trimesh' # 'trimesh' for uneven terrain, 'plane' for flat ground
+        horizontal_scale = 0.1 # [m] resolution of terrain grid
+        vertical_scale = 0.005 # [m] vertical resolution
+        border_size = 25 # [m]
+        curriculum = True # enable curriculum learning for terrain difficulty
+        static_friction = 1.0
+        dynamic_friction = 1.0
+        restitution = 0.
+        # rough terrain parameters:
+        measure_heights = True # measure terrain heights for observations
+        measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+        measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
+        selected = False # select a specific terrain type
+        terrain_kwargs = None # arguments for selected terrain
+        max_init_terrain_level = 5 # starting curriculum level
+        terrain_length = 8. # [m]
+        terrain_width = 8. # [m]
+        num_rows = 10 # number of terrain difficulty levels
+        num_cols = 20 # number of terrain types
+        # terrain type proportions: [smooth slope, rough slope, stairs up, stairs down, discrete obstacles, stepping stones, gaps, pits, flat]
+        # smooth slope (35%), rough slope (35%), flat (30%), all others disabled
+        terrain_proportions = [0.35, 0.35, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3]
+        # trimesh only:
+        slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
 
 
     class domain_rand(LeggedRobotCfg.domain_rand):
@@ -44,12 +70,14 @@ class G1RoughCfg( LeggedRobotCfg ):
                      'hip_pitch': 100,
                      'knee': 150,
                      'ankle': 40,
+                     'torso': 200,  # Add stiffness for torso to keep upper body stable
                      }  # [N*m/rad]
         damping = {  'hip_yaw': 2,
                      'hip_roll': 2,
                      'hip_pitch': 2,
                      'knee': 4,
                      'ankle': 2,
+                     'torso': 5,  # Add damping for torso to prevent oscillation
                      }  # [N*m/rad]  # [N*m*s/rad]
         # action scale: target angle = actionScale * action + defaultAngle
         action_scale = 0.25

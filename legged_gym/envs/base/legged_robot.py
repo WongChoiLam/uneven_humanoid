@@ -13,6 +13,7 @@ from typing import Tuple, Dict
 
 from legged_gym import LEGGED_GYM_ROOT_DIR
 from legged_gym.envs.base.base_task import BaseTask
+from legged_gym.utils.terrain import Terrain
 from legged_gym.utils.math import wrap_to_pi
 from legged_gym.utils.isaacgym_utils import get_euler_xyz as get_euler_xyz_in_tensor
 from legged_gym.utils.helpers import class_to_dict
@@ -198,9 +199,16 @@ class LeggedRobot(BaseTask):
     def create_sim(self):
         """ Creates simulation, terrain and evironments
         """
+        import sys
+        print("[DEBUG] create_sim called")
+        sys.stdout.flush()
         self.up_axis_idx = 2 # 2 for z, 1 for y -> adapt gravity accordingly
         self.sim = self.gym.create_sim(self.sim_device_id, self.graphics_device_id, self.physics_engine, self.sim_params)
+        print("[DEBUG] About to call _create_ground_plane")
+        sys.stdout.flush()
         self._create_ground_plane()
+        print("[DEBUG] _create_ground_plane finished")
+        sys.stdout.flush()
         self._create_envs()
 
     def set_camera(self, position, lookat):
@@ -519,12 +527,56 @@ class LeggedRobot(BaseTask):
     def _create_ground_plane(self):
         """ Adds a ground plane to the simulation, sets friction and restitution based on the cfg.
         """
-        plane_params = gymapi.PlaneParams()
-        plane_params.normal = gymapi.Vec3(0.0, 0.0, 1.0)
-        plane_params.static_friction = self.cfg.terrain.static_friction
-        plane_params.dynamic_friction = self.cfg.terrain.dynamic_friction
-        plane_params.restitution = self.cfg.terrain.restitution
-        self.gym.add_ground(self.sim, plane_params)
+        import sys
+        print(f"[DEBUG] _create_ground_plane called with mesh_type: {self.cfg.terrain.mesh_type}")
+        sys.stdout.flush()
+        if self.cfg.terrain.mesh_type == 'plane':
+            # Create simple flat plane
+            print("Creating flat plane terrain...")
+            plane_params = gymapi.PlaneParams()
+            plane_params.normal = gymapi.Vec3(0.0, 0.0, 1.0)
+            plane_params.static_friction = self.cfg.terrain.static_friction
+            plane_params.dynamic_friction = self.cfg.terrain.dynamic_friction
+            plane_params.restitution = self.cfg.terrain.restitution
+            self.gym.add_ground(self.sim, plane_params)
+        elif self.cfg.terrain.mesh_type == 'trimesh':
+            # Create terrain mesh
+            print("Creating trimesh terrain...")
+            self.terrain = Terrain(self.cfg.terrain, self.num_envs)
+            print(f"Terrain created with {self.terrain.vertices.shape[0]} vertices and {self.terrain.triangles.shape[0]} triangles")
+            print(f"Terrain size: {self.terrain.tot_rows} x {self.terrain.tot_cols}")
+            tm_params = gymapi.TriangleMeshParams()
+            tm_params.nb_vertices = self.terrain.vertices.shape[0]
+            tm_params.nb_triangles = self.terrain.triangles.shape[0]
+            tm_params.transform.p.x = -self.terrain.cfg.border_size
+            tm_params.transform.p.y = -self.terrain.cfg.border_size
+            tm_params.transform.p.z = 0.0
+            tm_params.static_friction = self.cfg.terrain.static_friction
+            tm_params.dynamic_friction = self.cfg.terrain.dynamic_friction
+            tm_params.restitution = self.cfg.terrain.restitution
+            self.gym.add_triangle_mesh(self.sim, self.terrain.vertices.flatten(order='C'),
+                                       self.terrain.triangles.flatten(order='C'), tm_params)
+            self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
+            print("Trimesh terrain added to simulation!")
+        elif self.cfg.terrain.mesh_type == 'heightfield':
+            # Create heightfield terrain
+            self.terrain = Terrain(self.cfg.terrain, self.num_envs)
+            hf_params = gymapi.HeightFieldParams()
+            hf_params.column_scale = self.terrain.cfg.horizontal_scale
+            hf_params.row_scale = self.terrain.cfg.horizontal_scale
+            hf_params.vertical_scale = self.terrain.cfg.vertical_scale
+            hf_params.nbRows = self.terrain.tot_rows
+            hf_params.nbColumns = self.terrain.tot_cols
+            hf_params.transform.p.x = -self.terrain.cfg.border_size
+            hf_params.transform.p.y = -self.terrain.cfg.border_size
+            hf_params.transform.p.z = 0.0
+            hf_params.static_friction = self.cfg.terrain.static_friction
+            hf_params.dynamic_friction = self.cfg.terrain.dynamic_friction
+            hf_params.restitution = self.cfg.terrain.restitution
+            self.gym.add_heightfield(self.sim, self.terrain.heightsamples, hf_params)
+            self.height_samples = torch.tensor(self.terrain.heightsamples).view(self.terrain.tot_rows, self.terrain.tot_cols).to(self.device)
+        elif self.cfg.terrain.mesh_type == 'none':
+            pass
 
     def _create_envs(self):
         """ Creates environments:
@@ -618,17 +670,28 @@ class LeggedRobot(BaseTask):
         """ Sets environment origins. On rough terrain the origins are defined by the terrain platforms.
             Otherwise create a grid.
         """
-      
-        self.custom_origins = False
-        self.env_origins = torch.zeros(self.num_envs, 3, device=self.device, requires_grad=False)
-        # create a grid of robots
-        num_cols = np.floor(np.sqrt(self.num_envs))
-        num_rows = np.ceil(self.num_envs / num_cols)
-        xx, yy = torch.meshgrid(torch.arange(num_rows), torch.arange(num_cols))
-        spacing = self.cfg.env.env_spacing
-        self.env_origins[:, 0] = spacing * xx.flatten()[:self.num_envs]
-        self.env_origins[:, 1] = spacing * yy.flatten()[:self.num_envs]
-        self.env_origins[:, 2] = 0.
+        if self.cfg.terrain.mesh_type in ["heightfield", "trimesh"]:
+            self.custom_origins = True
+            self.env_origins = torch.zeros(self.num_envs, 3, device=self.device, requires_grad=False)
+            # put robots at the origins defined by the terrain
+            max_init_level = self.cfg.terrain.max_init_terrain_level
+            if not self.cfg.terrain.curriculum: max_init_level = self.cfg.terrain.num_rows - 1
+            self.terrain_levels = torch.randint(0, max_init_level+1, (self.num_envs,), device=self.device)
+            self.terrain_types = torch.div(torch.arange(self.num_envs, device=self.device), (self.num_envs/self.cfg.terrain.num_cols), rounding_mode='floor').to(torch.long)
+            self.max_terrain_level = self.cfg.terrain.num_rows
+            self.terrain_origins = torch.from_numpy(self.terrain.env_origins).to(self.device).to(torch.float)
+            self.env_origins[:] = self.terrain_origins[self.terrain_levels, self.terrain_types]
+        else:
+            self.custom_origins = False
+            self.env_origins = torch.zeros(self.num_envs, 3, device=self.device, requires_grad=False)
+            # create a grid of robots
+            num_cols = np.floor(np.sqrt(self.num_envs))
+            num_rows = np.ceil(self.num_envs / num_cols)
+            xx, yy = torch.meshgrid(torch.arange(num_rows), torch.arange(num_cols))
+            spacing = self.cfg.env.env_spacing
+            self.env_origins[:, 0] = spacing * xx.flatten()[:self.num_envs]
+            self.env_origins[:, 1] = spacing * yy.flatten()[:self.num_envs]
+            self.env_origins[:, 2] = 0.
 
     def _parse_cfg(self, cfg):
         self.dt = self.cfg.control.decimation * self.sim_params.dt

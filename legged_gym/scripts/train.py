@@ -4,12 +4,16 @@ from datetime import datetime
 import sys
 
 import isaacgym
-from ..envs import *
-from ..utils import get_args, task_registry, runner_wrapper
+from legged_gym.envs import *
+from legged_gym.utils import get_args, task_registry, runner_wrapper
 import torch
 
 def train(args):
+    print(f"[TRAIN] Creating environment: {args.task}")
+    sys.stdout.flush()
     env, env_cfg = task_registry.make_env(name=args.task, args=args)
+    print(f"[TRAIN] Environment created successfully")
+    sys.stdout.flush()
     ppo_runner, train_cfg = task_registry.make_alg_runner(env=env, name=args.task, args=args)
     exp_name = args.experiment_name if args.experiment_name else "none"
     ppo_runner = runner_wrapper(ppo_runner,
